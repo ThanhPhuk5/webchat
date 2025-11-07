@@ -1143,9 +1143,7 @@ export default function ChatArea({
       });
 
       // Use baseURL from axios config
-      const baseURL =
-        import.meta.env.MODE === "development" ? "http://localhost:5001" : "";
-      const imgUrl = `${baseURL}${uploadRes.data.url}`;
+      const imgUrl = uploadRes.data.url;
       await handleSend(message, "image", imgUrl);
     } catch (err) {
       console.error("Lỗi upload ảnh:", err);
