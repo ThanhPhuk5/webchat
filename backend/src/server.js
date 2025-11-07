@@ -20,7 +20,7 @@ import { chatSocket } from "./sockets/chatSocket.js";
 dotenv.config();
 
 const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+const __dirname = path.resolve();
 
 const app = express();
 const server = createServer(app);
@@ -44,7 +44,7 @@ io.on("connection", (socket) => {
   if (userId) {
     userSockets.set(userId, socket.id);
     socket.join(userId); // để có thể io.to(userId).emit()
-    
+
     // Emit user online status đến tất cả bạn bè
     io.emit("user_status_changed", {
       userId: userId.toString(),
@@ -69,17 +69,29 @@ io.on("connection", (socket) => {
 // =======================
 app.use(express.json());
 app.use(cookieParser());
-app.use(
-  cors({
-    origin: ["http://localhost:5173", "http://localhost:5174"],
-    credentials: true,
-  })
-);
+if (process.env.NODE_ENV !== "production") {
+  app.use(
+    cors({
+      origin: ["http://localhost:5173", "http://localhost:5174"],
+      credentials: true,
+    })
+  );
+}
+
+if (process.env.NODE_ENV === "production") {
+  app.use(express.static(path.join(__dirname, "../frontend/dist")));
+  app.get("/", (req, res) => {
+    res.sendFile(path.join(__dirname, "../frontend/dist/index.html"));
+  });
+}
 
 // Serve static files from uploads directory
 app.use("/uploads", express.static(path.join(__dirname, "../uploads")));
 // Serve static files for avatars specifically
-app.use("/uploads/avatars", express.static(path.join(__dirname, "../uploads/avatars")));
+app.use(
+  "/uploads/avatars",
+  express.static(path.join(__dirname, "../uploads/avatars"))
+);
 
 // =======================
 // 🌐 ROUTES
