@@ -24,6 +24,8 @@ const __dirname = path.dirname(__filename);
 
 const app = express();
 const server = createServer(app);
+
+// ✅ Socket.IO
 const io = new Server(server, {
   cors: {
     origin:
@@ -36,36 +38,16 @@ const io = new Server(server, {
 
 const PORT = process.env.PORT || 5001;
 
-// Gắn io vào app để controller có thể truy cập
-app.set("io", io);
-
-// Lưu map userId ↔ socketId
-const userSockets = new Map();
-
-io.on("connection", (socket) => {
-  const userId = socket.handshake.query.userId;
-  if (userId) {
-    userSockets.set(userId, socket.id);
-    socket.join(userId); // để có thể io.to(userId).emit()
-
-    // Emit user online status đến tất cả bạn bè
-    io.emit("user_status_changed", {
-      userId: userId.toString(),
-      status: "online",
-    });
-  }
-
-  socket.on("disconnect", () => {
-    if (userId) {
-      userSockets.delete(userId);
-      // Emit user offline status đến tất cả bạn bè
-      io.emit("user_status_changed", {
-        userId: userId.toString(),
-        status: "offline",
-      });
-    }
-  });
-});
+// ✅ Cho phép CORS cho REST API luôn
+app.use(
+  cors({
+    origin:
+      process.env.NODE_ENV === "production"
+        ? "https://webchat-533n.onrender.com"
+        : ["http://localhost:5173", "http://localhost:5174"],
+    credentials: true,
+  })
+);
 
 // =======================
 // 🧩 MIDDLEWARES
@@ -73,22 +55,15 @@ io.on("connection", (socket) => {
 app.use(express.json());
 app.use(cookieParser());
 
-// Serve static files from uploads directory
+// ✅ Serve static uploads
 app.use("/uploads", express.static(path.join(__dirname, "../uploads")));
-// Serve static files for avatars specifically
 app.use(
   "/uploads/avatars",
   express.static(path.join(__dirname, "../uploads/avatars"))
 );
 
-if (process.env.NODE_ENV === "production") {
-  app.use(express.static(path.join(__dirname, "../dist")));
-  app.get(/^\/(?!api).*/, (req, res) => {
-    res.sendFile(path.join(__dirname, "../dist/index.html"));
-  });
-}
 // =======================
-// 🌐 ROUTES
+// 🌐 ROUTES (API)
 // =======================
 app.use("/api/auth", authRoute);
 app.use(protectedRoute);
@@ -99,24 +74,39 @@ app.use("/api/groups", groupRoute);
 app.use("/api/upload", uploadRoute);
 app.use("/api/chat-customizations", chatCustomizationRoute);
 
-if (process.env.NODE_ENV !== "production") {
-  app.use(
-    cors({
-      origin: ["http://localhost:5173", "http://localhost:5174"],
-      credentials: true,
-    })
-  );
+// =======================
+// 🧩 FRONTEND SERVE (luôn ở CUỐI FILE)
+// =======================
+if (process.env.NODE_ENV === "production") {
+  app.use(express.static(path.join(__dirname, "../dist")));
+  app.get(/^\/(?!api).*/, (req, res) => {
+    res.sendFile(path.join(__dirname, "../dist/index.html"));
+  });
 }
+
+// =======================
+// 💬 SOCKET.IO EVENTS
+// =======================
+io.on("connection", (socket) => {
+  const userId = socket.handshake.query.userId;
+  if (userId) {
+    socket.join(userId);
+    io.emit("user_status_changed", { userId, status: "online" });
+
+    socket.on("disconnect", () => {
+      io.emit("user_status_changed", { userId, status: "offline" });
+    });
+  }
+});
+
 // =======================
 // ⚙️ DATABASE & SERVER START
 // =======================
 connectDB().then(() => {
   server.listen(PORT, () => {
-    console.log(`✅ Server (Express + Socket.IO) đang chạy trên cổng ${PORT}`);
+    console.log(`✅ Server đang chạy trên cổng ${PORT}`);
   });
 });
 
-// =======================
-// 💬 SOCKET.IO CHAT SETUP
-// =======================
+// ✅ Setup chat socket logic
 chatSocket(io);
