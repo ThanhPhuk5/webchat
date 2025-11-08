@@ -26,7 +26,10 @@ const app = express();
 const server = createServer(app);
 const io = new Server(server, {
   cors: {
-    origin: ["http://localhost:5173", "http://localhost:5174"],
+    origin:
+      process.env.NODE_ENV === "production"
+        ? "https://webchat-533n.onrender.com"
+        : ["http://localhost:5173", "http://localhost:5174"],
     credentials: true,
   },
 });
@@ -69,14 +72,6 @@ io.on("connection", (socket) => {
 // =======================
 app.use(express.json());
 app.use(cookieParser());
-if (process.env.NODE_ENV !== "production") {
-  app.use(
-    cors({
-      origin: ["http://localhost:5173", "http://localhost:5174"],
-      credentials: true,
-    })
-  );
-}
 
 // Serve static files from uploads directory
 app.use("/uploads", express.static(path.join(__dirname, "../uploads")));
@@ -104,6 +99,14 @@ app.use("/api/groups", groupRoute);
 app.use("/api/upload", uploadRoute);
 app.use("/api/chat-customizations", chatCustomizationRoute);
 
+if (process.env.NODE_ENV !== "production") {
+  app.use(
+    cors({
+      origin: ["http://localhost:5173", "http://localhost:5174"],
+      credentials: true,
+    })
+  );
+}
 // =======================
 // ⚙️ DATABASE & SERVER START
 // =======================
