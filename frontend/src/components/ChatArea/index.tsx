@@ -460,6 +460,37 @@ export default function ChatArea({
     }
   }, [currentCallIsVideo, inCall]);
 
+  // Attach remote composed stream to audio/video elements when refs mount
+  useEffect(() => {
+    try {
+      const remoteStream = remoteStreamRef.current;
+      if (!remoteStream) return;
+
+      if (remoteAudioRef.current && remoteAudioRef.current.srcObject !== remoteStream) {
+        remoteAudioRef.current.srcObject = remoteStream;
+        remoteAudioRef.current.muted = false;
+        try { remoteAudioRef.current.volume = 1; } catch {}
+        remoteAudioRef.current.play().then(() => {
+          console.log('🔊 Remote audio playing (attached via useEffect)');
+        }).catch((err) => {
+          console.warn('❌ Could not autoplay remote audio (useEffect):', err);
+        });
+      }
+
+      if (remoteVideoRef.current && remoteVideoRef.current.srcObject !== remoteStream) {
+        remoteVideoRef.current.srcObject = remoteStream;
+        remoteVideoRef.current.play().then(() => {
+          console.log('📹 Remote video playing (attached via useEffect)');
+        }).catch((err) => {
+          console.warn('❌ Could not autoplay remote video (useEffect):', err);
+        });
+      }
+    } catch (e) {
+      console.warn('Error in remote attach useEffect', e);
+    }
+    // Run this effect when call state or video/audio UI might have changed
+  }, [inCall, currentCallIsVideo]);
+
   // Debug: Log state changes
   useEffect(() => {
     console.log("🔄 Call state changed:", {
@@ -543,12 +574,40 @@ export default function ChatArea({
     // cleared incoming call state (if any)
   };
 
+  // User-triggered play helper to work around autoplay restrictions
+  const tryPlayRemoteAudio = async () => {
+    try {
+      if (remoteAudioRef.current) {
+        remoteAudioRef.current.muted = false;
+        await remoteAudioRef.current.play();
+        console.log("🔊 User-triggered play succeeded");
+      }
+      if (remoteVideoRef.current) {
+        try {
+          await remoteVideoRef.current.play();
+          console.log("📹 User-triggered remote video play succeeded");
+        } catch (e) {
+          console.warn("Could not play remote video via user action", e);
+        }
+      }
+    } catch (e) {
+      console.warn("User-triggered play failed", e);
+    }
+  };
+
   const startCall = async (isVideo: boolean) => {
     if (!selectedChat || !user) return;
     try {
       const pc = new RTCPeerConnection({
         iceServers: [{ urls: "stun:stun.l.google.com:19302" }],
       });
+      // Log connection state changes for debugging
+      pc.onconnectionstatechange = () => {
+        console.log("PC connectionState:", pc.connectionState);
+      };
+      pc.oniceconnectionstatechange = () => {
+        console.log("PC iceConnectionState:", pc.iceConnectionState);
+      };
       peerRef.current = pc;
       setOutgoing(true);
       setCurrentCallIsVideo(isVideo);
@@ -741,6 +800,13 @@ export default function ChatArea({
       const pc = new RTCPeerConnection({
         iceServers: [{ urls: "stun:stun.l.google.com:19302" }],
       });
+      // Log connection state changes for debugging
+      pc.onconnectionstatechange = () => {
+        console.log("PC connectionState (answer):", pc.connectionState);
+      };
+      pc.oniceconnectionstatechange = () => {
+        console.log("PC iceConnectionState (answer):", pc.iceConnectionState);
+      };
       peerRef.current = pc;
       // Set state ngay lập tức để UI cập nhật
       setCurrentCallIsVideo(isVideo);
@@ -2001,6 +2067,19 @@ export default function ChatArea({
             console.error("❌ Remote audio error:", e);
           }}
         />
+      )}
+
+      {/* If audio-only and inCall, show an explicit user-play button to satisfy autoplay policies */}
+      {!currentCallIsVideo && inCall && (
+        <div className="fixed bottom-24 right-6 z-50">
+          <button
+            onClick={tryPlayRemoteAudio}
+            className="px-4 py-2 rounded-lg bg-blue-600 text-white shadow-lg hover:bg-blue-700"
+            title="Bật âm thanh"
+          >
+            Bật âm
+          </button>
+        </div>
       )}
     </div>
   );
