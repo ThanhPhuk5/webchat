@@ -70,6 +70,23 @@ io.on("connection", (socket) => {
 // =======================
 // 🧩 MIDDLEWARES
 // =======================
+// CORS middleware PHẢI ĐẶT TRƯỚC CÁC ROUTES
+if (process.env.NODE_ENV !== "production") {
+  app.use(
+    cors({
+      origin: ["http://localhost:5173", "http://localhost:5174"],
+      credentials: true,
+    })
+  );
+} else {
+  app.use(
+    cors({
+      origin: "https://webchat-533n.onrender.com",
+      credentials: true,
+    })
+  );
+}
+
 app.use(express.json());
 app.use(cookieParser());
 
@@ -98,15 +115,6 @@ app.use("/api/messages", messageRoute);
 app.use("/api/groups", groupRoute);
 app.use("/api/upload", uploadRoute);
 app.use("/api/chat-customizations", chatCustomizationRoute);
-
-if (process.env.NODE_ENV !== "production") {
-  app.use(
-    cors({
-      origin: ["http://localhost:5173", "http://localhost:5174"],
-      credentials: true,
-    })
-  );
-}
 // =======================
 // ⚙️ DATABASE & SERVER START
 // =======================
