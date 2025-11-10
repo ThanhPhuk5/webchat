@@ -54,6 +54,7 @@ export default function ChatArea({
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const peerRef = useRef<RTCPeerConnection | null>(null);
   const localStreamRef = useRef<MediaStream | null>(null);
+  const remoteStreamRef = useRef<MediaStream | null>(null);
   const remoteAudioRef = useRef<HTMLAudioElement | null>(null);
   const localVideoRef = useRef<HTMLVideoElement | null>(null);
   const remoteVideoRef = useRef<HTMLVideoElement | null>(null);
@@ -512,6 +513,14 @@ export default function ChatArea({
         localStreamRef.current.getTracks().forEach((t) => t.stop());
         localStreamRef.current = null;
       }
+      if (remoteStreamRef.current) {
+        try {
+          remoteStreamRef.current.getTracks().forEach((t) => t.stop());
+        } catch (e) {
+          console.warn("Error stopping remoteStream tracks", e);
+        }
+        remoteStreamRef.current = null;
+      }
       if (localVideoRef.current) {
         localVideoRef.current.srcObject = null;
       }
@@ -646,23 +655,50 @@ export default function ChatArea({
       });
 
       pc.ontrack = (e) => {
-        console.log("📹 Received remote track:", e.track.kind, e.streams);
-        const stream = e.streams[0];
+        try {
+          console.log("📹 Received remote track:", e.track.kind, e.streams);
 
-        if (!stream) {
-          console.warn("⚠️ No stream in ontrack event");
-          return;
-        }
+          // Some browsers provide streams in e.streams, others only provide track.
+          // Build/append to a remote MediaStream to ensure audio tracks are available.
+          if (!remoteStreamRef.current) {
+            remoteStreamRef.current = new MediaStream();
+          }
 
-        // Gán toàn bộ stream vào cả audio và video elements
-        // Browser sẽ tự động xử lý audio/video tracks
-        if (remoteAudioRef.current) {
-          remoteAudioRef.current.srcObject = stream;
-          console.log("🔊 Audio stream attached to remoteAudioRef");
-        }
-        if (remoteVideoRef.current) {
-          remoteVideoRef.current.srcObject = stream;
-          console.log("📹 Video stream attached to remoteVideoRef");
+          // If streams provided, add their tracks; otherwise add the single incoming track
+          if (e.streams && e.streams.length > 0) {
+            const s = e.streams[0];
+            s.getTracks().forEach((t) => remoteStreamRef.current!.addTrack(t));
+          } else {
+            remoteStreamRef.current.addTrack(e.track);
+          }
+
+          // Attach the composed remote stream to audio/video elements
+          if (remoteAudioRef.current) {
+            remoteAudioRef.current.srcObject = remoteStreamRef.current;
+            remoteAudioRef.current.muted = false;
+            try {
+              remoteAudioRef.current.volume = 1;
+            } catch {}
+            remoteAudioRef.current
+              .play()
+              .then(() => console.log("🔊 Remote audio playing"))
+              .catch((err) =>
+                console.warn("❌ Could not autoplay remote audio:", err)
+              );
+            console.log("🔊 Audio stream attached to remoteAudioRef");
+          }
+          if (remoteVideoRef.current) {
+            remoteVideoRef.current.srcObject = remoteStreamRef.current;
+            remoteVideoRef.current
+              .play()
+              .then(() => console.log("📹 Remote video playing"))
+              .catch((err) =>
+                console.warn("❌ Could not autoplay remote video:", err)
+              );
+            console.log("📹 Video stream attached to remoteVideoRef");
+          }
+        } catch (err) {
+          console.error("Error in ontrack handler:", err);
         }
       };
 
@@ -811,27 +847,56 @@ export default function ChatArea({
       });
 
       pc.ontrack = (e) => {
-        console.log(
-          "📹 Received remote track (answer):",
-          e.track.kind,
-          e.streams
-        );
-        const stream = e.streams[0];
+        try {
+          console.log(
+            "📹 Received remote track (answer):",
+            e.track.kind,
+            e.streams
+          );
 
-        if (!stream) {
-          console.warn("⚠️ No stream in ontrack event (answer)");
-          return;
-        }
+          if (!remoteStreamRef.current) {
+            remoteStreamRef.current = new MediaStream();
+          }
 
-        // Gán toàn bộ stream vào cả audio và video elements
-        // Browser sẽ tự động xử lý audio/video tracks
-        if (remoteAudioRef.current) {
-          remoteAudioRef.current.srcObject = stream;
-          console.log("🔊 Audio stream attached to remoteAudioRef (answer)");
-        }
-        if (remoteVideoRef.current) {
-          remoteVideoRef.current.srcObject = stream;
-          console.log("📹 Video stream attached to remoteVideoRef (answer)");
+          if (e.streams && e.streams.length > 0) {
+            const s = e.streams[0];
+            s.getTracks().forEach((t) => remoteStreamRef.current!.addTrack(t));
+          } else {
+            remoteStreamRef.current.addTrack(e.track);
+          }
+
+          if (remoteAudioRef.current) {
+            remoteAudioRef.current.srcObject = remoteStreamRef.current;
+            remoteAudioRef.current.muted = false;
+            try {
+              remoteAudioRef.current.volume = 1;
+            } catch {}
+            remoteAudioRef.current
+              .play()
+              .then(() =>
+                console.log("🔊 Remote audio playing (answer)")
+              )
+              .catch((err) =>
+                console.warn("❌ Could not autoplay remote audio (answer):", err)
+              );
+            console.log(
+              "🔊 Audio stream attached to remoteAudioRef (answer)"
+            );
+          }
+          if (remoteVideoRef.current) {
+            remoteVideoRef.current.srcObject = remoteStreamRef.current;
+            remoteVideoRef.current
+              .play()
+              .then(() => console.log("📹 Remote video playing (answer)"))
+              .catch((err) =>
+                console.warn("❌ Could not autoplay remote video (answer):", err)
+              );
+            console.log(
+              "📹 Video stream attached to remoteVideoRef (answer)"
+            );
+          }
+        } catch (err) {
+          console.error("Error in ontrack handler (answer):", err);
         }
       };
 
