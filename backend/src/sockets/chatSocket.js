@@ -126,7 +126,12 @@ export const chatSocket = (io) => {
       try {
         const to = payload?.to;
         if (!to) return;
+        console.log(
+          `📞 callUser event received: from=${payload?.from}, to=${to}, isVideo=${payload?.isVideo}`
+        );
+        console.log(`Socket rooms:`, Array.from(socket.rooms));
         io.to(String(to)).emit("incomingCall", payload);
+        console.log(`✅ incomingCall forwarded to room: ${to}`);
       } catch (e) {
         console.error("Error forwarding callUser", e);
       }
@@ -135,7 +140,10 @@ export const chatSocket = (io) => {
     socket.on("answerCall", ({ to, from, answer }) => {
       try {
         if (!to) return;
+        console.log(`✅ answerCall event received: from=${from}, to=${to}`);
+        console.log(`Socket rooms:`, Array.from(socket.rooms));
         io.to(String(to)).emit("callAnswered", { from, answer });
+        console.log(`✅ callAnswered forwarded to room: ${to}`);
       } catch (e) {
         console.error("Error forwarding answerCall", e);
       }
@@ -144,7 +152,9 @@ export const chatSocket = (io) => {
     socket.on("iceCandidate", ({ to, from, candidate }) => {
       try {
         if (!to) return;
+        console.log(`❄️ iceCandidate event: from=${from}, to=${to}`);
         io.to(String(to)).emit("iceCandidate", { from, candidate });
+        console.log(`✅ iceCandidate forwarded to room: ${to}`);
       } catch (e) {
         console.error("Error forwarding iceCandidate", e);
       }
@@ -153,7 +163,9 @@ export const chatSocket = (io) => {
     socket.on("endCall", ({ to, from }) => {
       try {
         if (!to) return;
+        console.log(`📞 endCall event: from=${from}, to=${to}`);
         io.to(String(to)).emit("endCall", { from });
+        console.log(`✅ endCall forwarded to room: ${to}`);
       } catch (e) {
         console.error("Error forwarding endCall", e);
       }
